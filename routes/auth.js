@@ -17,8 +17,8 @@ const transporter = nodemailer.createTransport({
 // REGISTER
 router.post('/register', async (req, res) => {
   try {
-    let { email, password } = req.body;
-    if (!email || !password)
+    let { name, email, password } = req.body;
+    if (!name || !email || !password)
       return res.status(400).json({ msg: 'All fields required' });
 
     email = email.toLowerCase().trim();
@@ -26,7 +26,7 @@ router.post('/register', async (req, res) => {
     if (existingUser)
       return res.status(400).json({ msg: 'User already exists' });
 
-    const user = new User({ email, password }); // Schema hashes it
+    const user = new User({ name, email, password });
     await user.save();
 
     res.json({ msg: 'User registered successfully' });
