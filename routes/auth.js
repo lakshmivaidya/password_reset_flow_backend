@@ -5,19 +5,16 @@ const User = require('../models/User');
 
 const router = express.Router();
 
-// ---------- MAIL CONFIG ----------
+// Mail config
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER, // Your Gmail or App Password
+    user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
-  },
-  connectionTimeout: 10000, // 10 seconds
-  greetingTimeout: 10000,
-  socketTimeout: 10000
+  }
 });
 
-// ---------- REGISTER ----------
+// REGISTER
 router.post('/register', async (req, res) => {
   try {
     let { name, email, password } = req.body;
@@ -38,7 +35,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// ---------- LOGIN ----------
+// LOGIN
 router.post('/login', async (req, res) => {
   try {
     let { email, password } = req.body;
@@ -59,7 +56,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// ---------- FORGOT PASSWORD ----------
+// FORGOT PASSWORD
 router.post('/forgot-password', async (req, res) => {
   try {
     let { email } = req.body;
@@ -83,7 +80,7 @@ router.post('/forgot-password', async (req, res) => {
     const resetLink = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
     try {
-      await transporter.sendMail({
+      const info = await transporter.sendMail({
         to: user.email,
         subject: 'Password Reset',
         html: `
@@ -93,10 +90,10 @@ router.post('/forgot-password', async (req, res) => {
           <p>This link will expire in 15 minutes.</p>
         `
       });
-      console.log(`Password reset email sent to ${user.email}`);
+      console.log('Email sent:', info.response);
     } catch (emailErr) {
-      console.error('Failed to send email:', emailErr.message);
-      // Still respond success to avoid exposing which emails exist
+      console.error('Error sending email:', emailErr);
+      return res.status(500).json({ msg: 'Error sending reset email' });
     }
 
     res.json({
@@ -107,7 +104,7 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
-// ---------- RESET PASSWORD ----------
+// RESET PASSWORD
 router.post('/reset-password/:token', async (req, res) => {
   try {
     const { password } = req.body;
@@ -128,7 +125,7 @@ router.post('/reset-password/:token', async (req, res) => {
 
     if (!user) return res.status(400).json({ msg: 'Invalid or expired token' });
 
-    user.password = password; // schema hashes it automatically
+    user.password = password; // schema hashes it
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
 
