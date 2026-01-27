@@ -31,6 +31,7 @@ router.post('/register', async (req, res) => {
 
     res.json({ msg: 'User registered successfully' });
   } catch (err) {
+    console.error('Register Error:', err);
     res.status(500).json({ msg: err.message });
   }
 });
@@ -52,6 +53,7 @@ router.post('/login', async (req, res) => {
 
     res.json({ msg: 'Login successful' });
   } catch (err) {
+    console.error('Login Error:', err);
     res.status(500).json({ msg: err.message });
   }
 });
@@ -63,10 +65,11 @@ router.post('/forgot-password', async (req, res) => {
     email = email.toLowerCase().trim();
 
     const user = await User.findOne({ email });
-    if (!user)
-      return res.json({
-        msg: 'If this email exists, a reset link has been sent'
-      });
+
+    // Always respond with this message to prevent email enumeration
+    const responseMsg = 'If this email exists, a reset link has been sent';
+
+    if (!user) return res.json({ msg: responseMsg });
 
     // Generate token and hash it
     const resetToken = crypto.randomBytes(32).toString('hex');
@@ -80,7 +83,7 @@ router.post('/forgot-password', async (req, res) => {
     const resetLink = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
     try {
-      const info = await transporter.sendMail({
+      await transporter.sendMail({
         to: user.email,
         subject: 'Password Reset',
         html: `
@@ -90,16 +93,17 @@ router.post('/forgot-password', async (req, res) => {
           <p>This link will expire in 15 minutes.</p>
         `
       });
-      console.log('Email sent:', info.response);
+
+      console.log(`Password reset email sent to ${user.email}`);
     } catch (emailErr) {
-      console.error('Error sending email:', emailErr);
-      return res.status(500).json({ msg: 'Error sending reset email' });
+      console.error('Error sending reset email:', emailErr);
+      // You can optionally change response here for testing:
+      // return res.status(500).json({ msg: 'Error sending reset email' });
     }
 
-    res.json({
-      msg: 'If this email exists, a reset link has been sent'
-    });
+    res.json({ msg: responseMsg });
   } catch (err) {
+    console.error('Forgot Password Error:', err);
     res.status(500).json({ msg: err.message });
   }
 });
@@ -132,6 +136,7 @@ router.post('/reset-password/:token', async (req, res) => {
     await user.save();
     res.json({ msg: 'Password reset successful' });
   } catch (err) {
+    console.error('Reset Password Error:', err);
     res.status(500).json({ msg: err.message });
   }
 });
