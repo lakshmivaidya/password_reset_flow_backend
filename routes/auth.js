@@ -5,16 +5,19 @@ const User = require('../models/User');
 
 const router = express.Router();
 
-// Mail config
+// ---------- MAIL CONFIG ----------
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER,
+    user: process.env.EMAIL_USER, // Your Gmail or App Password
     pass: process.env.EMAIL_PASS
-  }
+  },
+  connectionTimeout: 10000, // 10 seconds
+  greetingTimeout: 10000,
+  socketTimeout: 10000
 });
 
-// REGISTER
+// ---------- REGISTER ----------
 router.post('/register', async (req, res) => {
   try {
     let { name, email, password } = req.body;
@@ -35,7 +38,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// LOGIN
+// ---------- LOGIN ----------
 router.post('/login', async (req, res) => {
   try {
     let { email, password } = req.body;
@@ -56,7 +59,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// FORGOT PASSWORD
+// ---------- FORGOT PASSWORD ----------
 router.post('/forgot-password', async (req, res) => {
   try {
     let { email } = req.body;
@@ -79,16 +82,22 @@ router.post('/forgot-password', async (req, res) => {
 
     const resetLink = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
-    await transporter.sendMail({
-      to: user.email,
-      subject: 'Password Reset',
-      html: `
-        <p>You requested a password reset.</p>
-        <p>Click the link below to reset your password:</p>
-        <a href="${resetLink}">${resetLink}</a>
-        <p>This link will expire in 15 minutes.</p>
-      `
-    });
+    try {
+      await transporter.sendMail({
+        to: user.email,
+        subject: 'Password Reset',
+        html: `
+          <p>You requested a password reset.</p>
+          <p>Click the link below to reset your password:</p>
+          <a href="${resetLink}">${resetLink}</a>
+          <p>This link will expire in 15 minutes.</p>
+        `
+      });
+      console.log(`Password reset email sent to ${user.email}`);
+    } catch (emailErr) {
+      console.error('Failed to send email:', emailErr.message);
+      // Still respond success to avoid exposing which emails exist
+    }
 
     res.json({
       msg: 'If this email exists, a reset link has been sent'
@@ -98,7 +107,7 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
-// RESET PASSWORD
+// ---------- RESET PASSWORD ----------
 router.post('/reset-password/:token', async (req, res) => {
   try {
     const { password } = req.body;
@@ -119,7 +128,7 @@ router.post('/reset-password/:token', async (req, res) => {
 
     if (!user) return res.status(400).json({ msg: 'Invalid or expired token' });
 
-    user.password = password; // schema hashes it
+    user.password = password; // schema hashes it automatically
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
 
