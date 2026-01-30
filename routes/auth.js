@@ -9,8 +9,8 @@ const router = express.Router();
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
+    user: process.env.EMAIL_USER, // your Gmail
+    pass: process.env.EMAIL_PASS  // your Gmail App Password
   }
 });
 
@@ -66,13 +66,15 @@ router.post('/forgot-password', async (req, res) => {
 
     const user = await User.findOne({ email });
 
-    // Always respond with this message to prevent email enumeration
+    // Always respond with same message to prevent email enumeration
     const responseMsg = 'If this email exists, a reset link has been sent';
 
     if (!user) return res.json({ msg: responseMsg });
 
-    // Generate token and hash it
+    // Generate reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
+
+    // Hash token and save to user
     user.resetPasswordToken = crypto
       .createHash('sha256')
       .update(resetToken)
@@ -85,7 +87,7 @@ router.post('/forgot-password', async (req, res) => {
     try {
       await transporter.sendMail({
         to: user.email,
-        subject: 'Password Reset',
+        subject: 'Password Reset Request',
         html: `
           <p>You requested a password reset.</p>
           <p>Click the link below to reset your password:</p>
@@ -97,8 +99,6 @@ router.post('/forgot-password', async (req, res) => {
       console.log(`Password reset email sent to ${user.email}`);
     } catch (emailErr) {
       console.error('Error sending reset email:', emailErr);
-      // You can optionally change response here for testing:
-      // return res.status(500).json({ msg: 'Error sending reset email' });
     }
 
     res.json({ msg: responseMsg });
@@ -129,7 +129,7 @@ router.post('/reset-password/:token', async (req, res) => {
 
     if (!user) return res.status(400).json({ msg: 'Invalid or expired token' });
 
-    user.password = password; // schema hashes it
+    user.password = password; // will be hashed by schema
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
 
