@@ -1,18 +1,12 @@
 const express = require('express');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail'); // only once here
 const User = require('../models/User');
 
 const router = express.Router();
 
-// Mail config
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
+// Configure SendGrid once
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // REGISTER
 router.post('/register', async (req, res) => {
@@ -28,6 +22,7 @@ router.post('/register', async (req, res) => {
 
     const user = new User({ name, email, password });
     await user.save();
+
     res.json({ msg: 'User registered successfully' });
   } catch (err) {
     console.error('Register Error:', err);
@@ -58,11 +53,7 @@ router.post('/login', async (req, res) => {
 });
 
 // FORGOT PASSWORD
-
 router.post('/forgot-password', async (req, res) => {
-  console.log('Forgot password route hit'); 
-  console.log('Request body:', req.body);    
-
   try {
     let { email } = req.body;
     email = email.toLowerCase().trim();
@@ -72,35 +63,28 @@ router.post('/forgot-password', async (req, res) => {
 
     if (!user) return res.json({ msg: responseMsg });
 
-    // Generate token and hash it
+    // Generate reset token and hash
     const resetToken = crypto.randomBytes(32).toString('hex');
-    user.resetPasswordToken = crypto
-      .createHash('sha256')
-      .update(resetToken)
-      .digest('hex');
+    user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
     user.resetPasswordExpire = Date.now() + 15 * 60 * 1000; // 15 minutes
     await user.save();
 
     const resetLink = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
-    // Send email
-    transporter.sendMail({
+    const msg = {
       to: user.email,
-      subject: 'Password Reset',
+      from: process.env.EMAIL_FROM, // your verified SendGrid email
+      subject: 'Password Reset Request',
       html: `
         <p>You requested a password reset.</p>
         <p>Click the link below to reset your password:</p>
         <a href="${resetLink}">${resetLink}</a>
         <p>This link will expire in 15 minutes.</p>
       `
-    }, (err, info) => {
-      if (err) {
-        console.error('Error sending reset email:', err);
-      } else {
-        console.log(`Password reset email sent to ${user.email}`);
-        console.log('Mail info:', info); // ✅ See details returned by Gmail
-      }
-    });
+    };
+
+    await sgMail.send(msg);
+    console.log(`Password reset email sent to ${user.email}`);
 
     res.json({ msg: responseMsg });
   } catch (err) {
@@ -125,7 +109,7 @@ router.post('/reset-password/:token', async (req, res) => {
 
     if (!user) return res.status(400).json({ msg: 'Invalid or expired token' });
 
-    user.password = password; // schema will hash it
+    user.password = password; // will hash automatically
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
     await user.save();
